@@ -10,16 +10,43 @@ import android.telecom.TelecomManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -32,7 +59,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import zw.co.donnclab.calltape.data.CallRepository
-import zw.co.donnclab.calltape.service.CallTranscriptionService
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
@@ -95,13 +121,13 @@ fun DialerScreen(
                         ),
                         maxLines = 1
                     )
-                    
+
                     if (phoneNumber.isNotEmpty()) {
                         IconButton(
                             onClick = { phoneNumber = phoneNumber.dropLast(1) }
                         ) {
                             Icon(
-                                Icons.Default.Clear, 
+                                Icons.Default.Clear,
                                 contentDescription = "Backspace",
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                             )
@@ -120,7 +146,7 @@ fun DialerScreen(
 
             val hasPhonePermissions = remember(context) {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
             }
 
             if (hasPhonePermissions) {
@@ -159,7 +185,7 @@ fun DialerScreen(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(48.dp))
         }
     }
@@ -196,8 +222,8 @@ fun DialPad(onDigitClick: (String) -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DialButton(
-    digit: String, 
-    subtext: String = "", 
+    digit: String,
+    subtext: String = "",
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -223,7 +249,7 @@ fun DialButton(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = digit, 
+                    text = digit,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -297,7 +323,6 @@ fun SimSelectionAndCallButton(
             onClick = {
                 val accountHandle = if (accounts.isNotEmpty()) {
                     // Try to match the selected slot with available accounts
-                    // If slot is 1, take index 0. If slot is 2, take index 1 if available, else index 0.
                     val index = if (selectedSimSlot == 1) 0 else (if (accounts.size > 1) 1 else 0)
                     accounts[index]
                 } else {
@@ -316,7 +341,7 @@ fun SimSelectionAndCallButton(
             enabled = phoneNumber.isNotEmpty()
         ) {
             Icon(
-                Icons.Default.Call, 
+                Icons.Default.Call,
                 contentDescription = "Call",
                 modifier = Modifier.size(32.dp)
             )
@@ -327,14 +352,11 @@ fun SimSelectionAndCallButton(
 private fun initiateCall(context: Context, phoneNumber: String, accountHandle: PhoneAccountHandle?, simSlot: Int) {
     if (phoneNumber.isEmpty()) return
 
+    // 1. Save the selected SIM slot so the InCallService & Printer know which one was used
     CallRepository.currentSimSlot = simSlot
 
-    val serviceIntent = Intent(context, CallTranscriptionService::class.java).apply {
-        putExtra("EXTRA_PHONE_NUMBER", phoneNumber)
-        putExtra("EXTRA_SIM_SLOT", simSlot + 1)
-    }
-    context.startService(serviceIntent) // Updates variables in onStartCommand
-
+    // 2. Tell the Android OS to make the call.
+    // Because we are the Default Dialer, this will automatically wake up CallTapeInCallService!
     val callIntent = Intent(Intent.ACTION_CALL).apply {
         data = "tel:${Uri.encode(phoneNumber)}".toUri()
         if (accountHandle != null) {
@@ -346,7 +368,7 @@ private fun initiateCall(context: Context, phoneNumber: String, accountHandle: P
     try {
         context.startActivity(callIntent)
     } catch (e: SecurityException) {
-        // Handle missing permission
+        // Handled silently. The UI already blocks the button if permissions are missing.
     }
 }
 

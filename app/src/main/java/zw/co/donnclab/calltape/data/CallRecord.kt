@@ -8,6 +8,6 @@ data class CallRecord(
     val startTime: Long,
     val endTime: Long = 0L,
     val durationSeconds: Long = 0L,
-    val simSlotUsed: String,
+    val simSlotUsed: Int,
     val transcriptLines: String // Stores the formatted dialogue lines
 )

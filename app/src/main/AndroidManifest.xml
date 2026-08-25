@@ -6,14 +6,6 @@
         android:name="android.hardware.telephony"
         android:required="false" />
 
-    <!-- Required to become the default dialer -->
-    <intent-filter>
-        <action android:name="android.intent.action.DIAL" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <category android:name="android.intent.category.BROWSABLE" />
-        <data android:scheme="tel" />
-    </intent-filter>
-
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -42,13 +34,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
 
-        <service
-            android:name="zw.co.donnclab.calltape.service.CallTranscriptionService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
+            <!-- Required to become the default dialer -->
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+            </intent-filter>
+        </activity>
 
         <!-- The Service that Android binds to when a call happens -->
         <service

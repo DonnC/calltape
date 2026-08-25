@@ -1,12 +1,38 @@
 package zw.co.donnclab.calltape.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,20 +79,20 @@ fun HomeContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         "History",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
                         )
-                    ) 
+                    )
                 },
                 actions = {
                     if (callHistory.isNotEmpty()) {
                         IconButton(onClick = onClearHistory) {
                             Icon(
-                                Icons.Default.Delete, 
+                                Icons.Default.Delete,
                                 contentDescription = "Clear History",
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -170,14 +196,14 @@ fun CallRecordCard(
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
-                
+
                 OutlinedIconButton(
                     onClick = onPrint,
                     shape = MaterialTheme.shapes.small,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                 ) {
                     Icon(
-                        Icons.Default.Share, 
+                        Icons.Default.Share, // You can also swap this to Icons.Default.Print if you prefer
                         contentDescription = "Print",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
@@ -195,7 +221,7 @@ fun CallRecordCard(
                 )
                 InfoChip(
                     icon = Icons.Default.Settings,
-                    text = record.simSlotUsed
+                    text = record.simSlotUsed.toString()
                 )
             }
 
@@ -235,8 +261,8 @@ fun InfoChip(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
             Icon(
-                icon, 
-                contentDescription = null, 
+                icon,
+                contentDescription = null,
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.secondary
             )
@@ -270,16 +296,18 @@ fun HomeScreenPreview() {
             CallRecord(
                 phoneNumber = "+263 77 123 4567",
                 startTime = System.currentTimeMillis(),
+                endTime = System.currentTimeMillis() + 125000,
                 durationSeconds = 125,
                 transcriptLines = "Hello, this is a test transcript for the call tape application. I am speaking clearly and demonstrating the UI features for the new POS dashboard design.",
-                simSlotUsed = "SIM 1"
+                simSlotUsed = 1
             ),
             CallRecord(
                 phoneNumber = "+263 71 987 6543",
                 startTime = System.currentTimeMillis() - 3600000,
+                endTime = System.currentTimeMillis() - 3600000 + 45000,
                 durationSeconds = 45,
                 transcriptLines = "Quick call to confirm the meeting tomorrow at 10 AM. We will discuss the new project requirements and the hardware integration.",
-                simSlotUsed = "SIM 2"
+                simSlotUsed = 2
             )
         )
         HomeContent(
