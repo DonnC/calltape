@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+
+# Ignore unpacked Vosk STT and Speaker models in assets
+/src/main/assets/model-en-us/
+/src/main/assets/spk-model/
+/src/main/assets/model-*/
