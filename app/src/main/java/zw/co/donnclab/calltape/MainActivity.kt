@@ -22,10 +22,6 @@ import zw.co.donnclab.calltape.ui.HomeScreen
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
-sealed interface Screen {
-    data object Home : Screen
-    data object Dialer : Screen
-}
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -39,7 +35,6 @@ class MainActivity : ComponentActivity() {
     private val dialerRoleLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        // Models init after permissions & dialer setup are complete
         VoskModelManager.init(this)
     }
 
