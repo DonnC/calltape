@@ -89,22 +89,23 @@ dependencies {
 // Generate UUID files for Vosk models so they unpack correctly
 tasks.register("genVoskUuid") {
     description = "Vosk storage service quick fix. (Issue #846 and Issue #522)"
+    val mainModelDir = project.layout.projectDirectory.dir("src/main/assets/model-en-us")
+    val spkModelDir = project.layout.projectDirectory.dir("src/main/assets/spk-model")
+
     doLast {
         val uuidString = UUID.randomUUID().toString()
 
-        // Define paths to your asset folders
-        val mainModelDir = file("src/main/assets/model-en-us")
-        val spkModelDir = file("src/main/assets/spk-model")
-
         // Create UUID file for the main speech model
-        if (mainModelDir.exists()) {
-            val uuidFile = file("$mainModelDir/uuid")
+        val mainModelFile = mainModelDir.asFile
+        if (mainModelFile.exists()) {
+            val uuidFile = mainModelFile.resolve("uuid")
             uuidFile.writeText(uuidString)
         }
 
         // Create UUID file for the speaker model
-        if (spkModelDir.exists()) {
-            val spkUuidFile = file("$spkModelDir/uuid")
+        val spkModelFile = spkModelDir.asFile
+        if (spkModelFile.exists()) {
+            val spkUuidFile = spkModelFile.resolve("uuid")
             spkUuidFile.writeText(uuidString)
         }
     }

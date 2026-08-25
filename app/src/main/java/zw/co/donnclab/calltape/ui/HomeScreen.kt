@@ -81,7 +81,7 @@ fun HomeContent(
             TopAppBar(
                 title = {
                     Text(
-                        "History",
+                        "CallTape: History",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
