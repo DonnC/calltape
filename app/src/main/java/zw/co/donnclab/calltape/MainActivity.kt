@@ -11,8 +11,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import zw.co.donnclab.calltape.service.VoskModelManager
 import zw.co.donnclab.calltape.telecom.CallTapeInCallService
@@ -21,7 +27,6 @@ import zw.co.donnclab.calltape.ui.DialerScreen
 import zw.co.donnclab.calltape.ui.HomeScreen
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
-
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -45,7 +50,8 @@ class MainActivity : ComponentActivity() {
             arrayOf(
                 Manifest.permission.CALL_PHONE,
                 Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.READ_PHONE_STATE
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.MANAGE_OWN_CALLS
             )
         )
 
@@ -77,26 +83,53 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class ScreenTab(val title: String, val icon: ImageVector) {
+    HISTORY("History", Icons.Default.List),
+    DIALER("Dialer", Icons.Default.Phone),
+    ACTIVE_CALL("In-Call", Icons.Default.Call)
+}
 
 @Composable
 fun MainAppRouter(
     viewModel: CallViewModel = viewModel()
 ) {
     val activeCall by CallTapeInCallService.activeCallState.collectAsState()
+    var selectedTab by remember { mutableStateOf(ScreenTab.HISTORY) }
 
-    var showDialer by remember { mutableStateOf(false) }
+    LaunchedEffect(activeCall) {
+        if (activeCall != null) {
+            selectedTab = ScreenTab.ACTIVE_CALL
+        }
+    }
 
-    if (activeCall != null) {
-        ActiveCallScreen(call = activeCall!!)
-    } else if (showDialer) {
-        DialerScreen(
-            viewModel = viewModel,
-            onBack = { showDialer = false }
-        )
-    } else {
-        HomeScreen(
-            viewModel = viewModel,
-            onNavigateToDialer = { showDialer = true }
-        )
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                ScreenTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        icon = { Icon(tab.icon, contentDescription = tab.title) },
+                        label = { Text(tab.title) },
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab }
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            when (selectedTab) {
+                ScreenTab.HISTORY -> HomeScreen(
+                    viewModel = viewModel,
+                    onNavigateToDialer = { selectedTab = ScreenTab.DIALER }
+                )
+                ScreenTab.DIALER -> DialerScreen(
+                    viewModel = viewModel,
+                    onBack = { selectedTab = ScreenTab.HISTORY }
+                )
+                ScreenTab.ACTIVE_CALL -> ActiveCallScreen(
+                    call = activeCall
+                )
+            }
+        }
     }
 }

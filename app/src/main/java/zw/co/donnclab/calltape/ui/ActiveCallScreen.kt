@@ -12,10 +12,10 @@ import androidx.compose.ui.unit.dp
 import zw.co.donnclab.calltape.telecom.CallTapeInCallService
 
 @Composable
-fun ActiveCallScreen(call: Call) {
+fun ActiveCallScreen(call: Call?) {
     var isSpeakerOn by remember { mutableStateOf(false) }
     val liveTranscript by CallTapeInCallService.activeTranscript.collectAsState()
-    val callState = call.state
+    val callState = call?.state
     
     val stateText = when (callState) {
         Call.STATE_DIALING -> "Dialing..."

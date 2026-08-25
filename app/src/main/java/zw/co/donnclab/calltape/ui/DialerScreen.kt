@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -349,26 +352,51 @@ fun SimSelectionAndCallButton(
     }
 }
 
+//private fun initiateCall(context: Context, phoneNumber: String, accountHandle: PhoneAccountHandle?, simSlot: Int) {
+//    if (phoneNumber.isEmpty()) return
+//
+//    // 1. Save the selected SIM slot so the InCallService & Printer know which one was used
+//    CallRepository.currentSimSlot = simSlot
+//
+//    // 2. Tell the Android OS to make the call.
+//    // Because we are the Default Dialer, this will automatically wake up CallTapeInCallService!
+//    val callIntent = Intent(Intent.ACTION_CALL).apply {
+//        data = "tel:${Uri.encode(phoneNumber)}".toUri()
+//        if (accountHandle != null) {
+//            putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
+//        }
+//        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//    }
+//
+//    try {
+//        context.startActivity(callIntent)
+//    } catch (e: SecurityException) {
+//        // Handled silently. The UI already blocks the button if permissions are missing.
+//    }
+//}
+
 private fun initiateCall(context: Context, phoneNumber: String, accountHandle: PhoneAccountHandle?, simSlot: Int) {
     if (phoneNumber.isEmpty()) return
 
-    // 1. Save the selected SIM slot so the InCallService & Printer know which one was used
     CallRepository.currentSimSlot = simSlot
 
-    // 2. Tell the Android OS to make the call.
-    // Because we are the Default Dialer, this will automatically wake up CallTapeInCallService!
-    val callIntent = Intent(Intent.ACTION_CALL).apply {
-        data = "tel:${Uri.encode(phoneNumber)}".toUri()
+    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+    val uri = Uri.fromParts("tel", phoneNumber, null)
+    val extras = Bundle().apply {
         if (accountHandle != null) {
-            putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
+            putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
         }
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     try {
-        context.startActivity(callIntent)
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            // Using TelecomManager directly instead of Intent.ACTION_CALL
+            // forces the OS to use our InCallService if we are the default dialer.
+            telecomManager.placeCall(uri, extras)
+        }
     } catch (e: SecurityException) {
-        // Handled silently. The UI already blocks the button if permissions are missing.
+        // Handle permissions
+        Log.e("DialerScreen", "Permission denied", e)
     }
 }
 
