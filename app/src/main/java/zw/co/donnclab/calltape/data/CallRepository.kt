@@ -8,6 +8,8 @@ object CallRepository {
     private val _callHistory = MutableStateFlow<List<CallRecord>>(emptyList())
     val callHistory: StateFlow<List<CallRecord>> = _callHistory.asStateFlow()
 
+    var currentSimSlot: Int = 1
+
     fun addRecord(record: CallRecord) {
         val current = _callHistory.value.toMutableList()
         current.add(0, record)

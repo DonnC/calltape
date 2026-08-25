@@ -13,16 +13,18 @@ import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import zw.co.donnclab.calltape.data.CallRecord
-import zw.co.donnclab.calltape.data.CallRepository
-import zw.co.donnclab.calltape.hardware.MockPrinterImpl
-import zw.co.donnclab.calltape.hardware.PosPrinter
 import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.SpeakerModel
 import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
+import org.vosk.android.StorageService
+import zw.co.donnclab.calltape.data.CallRecord
+import zw.co.donnclab.calltape.data.CallRepository
+import zw.co.donnclab.calltape.hardware.IPosPrinter
+import zw.co.donnclab.calltape.hardware.LoggerPrinterImplI
+import zw.co.donnclab.calltape.utils.ReceiptFormatter
 import java.io.IOException
 import kotlin.math.sqrt
 
@@ -37,9 +39,11 @@ class CallTranscriptionService : Service(), RecognitionListener {
 
     private lateinit var telephonyManager: TelephonyManager
     private var speechService: SpeechService? = null
-    private var model: Model? = null
-    private var speakerModel: SpeakerModel? = null
-    private val printer: PosPrinter = MockPrinterImpl
+
+    private var mainModel: Model? = null
+    private var speakerModel: SpkModel? = null
+
+    private val printer: IPosPrinter = LoggerPrinterImplI
 
     private var callStartTime: Long = 0
     private var transcriptBuffer = StringBuilder()
@@ -50,7 +54,9 @@ class CallTranscriptionService : Service(), RecognitionListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : TelephonyCallback(), TelephonyCallback.CallStateListener {
                 override fun onCallStateChanged(state: Int) {
-                    handleCallState(state)
+                    // In Android 12+, phone number requires READ_CALL_LOG.
+                    // We rely on the Intent that started the call to set this, or leave as Unknown.
+                    handleCallState(state, "Unknown")
                 }
             }
         } else {
@@ -64,7 +70,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
             object : PhoneStateListener() {
                 @Deprecated("Deprecated in Java")
                 override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                    handleCallState(state)
+                    handleCallState(state, phoneNumber ?: "Unknown")
                 }
             }
         } else {
@@ -74,14 +80,23 @@ class CallTranscriptionService : Service(), RecognitionListener {
 
     override fun onCreate() {
         super.onCreate()
-        telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        telephonyManager = getSystemService(TELEPHONY_SERVICE) as TelephonyManager
         createNotificationChannel()
         startForegroundService()
         registerCallStateListener()
-        loadVoskModel()
-    }
 
+        loadVoskModels()
+    }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            if (it.hasExtra("EXTRA_PHONE_NUMBER")) {
+                currentPhoneNumber = it.getStringExtra("EXTRA_PHONE_NUMBER") ?: "Unknown"
+            }
+            if (it.hasExtra("EXTRA_SIM_SLOT")) {
+                // Update your in-memory repository or local variable so the printer knows
+                CallRepository.currentSimSlot = it.getStringExtra("EXTRA_SIM_SLOT") ?: "Unknown"
+            }
+        }
         return START_STICKY
     }
 
@@ -89,8 +104,8 @@ class CallTranscriptionService : Service(), RecognitionListener {
 
     private fun startForegroundService() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Call Transcription Active")
-            .setContentText("Listening for calls...")
+            .setContentTitle("CallTape Active")
+            .setContentText("Listening and ready to transcribe...")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -140,25 +155,46 @@ class CallTranscriptionService : Service(), RecognitionListener {
         }
     }
 
-    private fun loadVoskModel() {
-        // TODO: Load the actual models from assets or storage
-        // model = Model(this, "model-en-us")
-        // speakerModel = SpeakerModel("model-spk")
-        Log.d(TAG, "Loading Vosk models...")
+    private fun loadVoskModels() {
+        Log.d(TAG, "Unpacking Vosk main speech model from assets...")
+        StorageService.unpack(this, "model-en-us", "model",
+            { model ->
+                this.mainModel = model
+                Log.d(TAG, "Main model loaded successfully.")
+
+                Log.d(TAG, "Unpacking Vosk speaker model from assets...")
+                StorageService.unpack(this, "spk-model", "spk",
+                    { spkModel ->
+                        this.speakerModel = spkModel
+                        Log.d(TAG, "Speaker model loaded successfully.")
+                    },
+                    { exception ->
+                        Log.e(TAG, "Failed to load speaker model. Diarization will be disabled.", exception)
+                    }
+                )
+            },
+            { exception ->
+                Log.e(TAG, "Failed to load main speech model. Transcription cannot start.", exception)
+            }
+        )
     }
 
-    private fun handleCallState(state: Int) {
+    private fun handleCallState(state: Int, incomingNumber: String) {
+        if (incomingNumber != "Unknown" && incomingNumber.isNotBlank()) {
+            currentPhoneNumber = incomingNumber
+        }
+
         when (state) {
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                Log.d(TAG, "Call Off-hook")
+                Log.d(TAG, "Call Off-hook. Starting transcription.")
                 startTranscription()
             }
             TelephonyManager.CALL_STATE_IDLE -> {
-                Log.d(TAG, "Call Idle")
+                Log.d(TAG, "Call Idle. Stopping transcription.")
                 stopTranscription()
             }
             TelephonyManager.CALL_STATE_RINGING -> {
-                Log.d(TAG, "Call Ringing")
+                Log.d(TAG, "Call Ringing: $currentPhoneNumber")
             }
         }
     }
@@ -168,66 +204,83 @@ class CallTranscriptionService : Service(), RecognitionListener {
         transcriptBuffer.setLength(0)
         caller1Vector = null
 
+        val currentSimSlot = CallRepository.currentSimSlot
+
+        // Output the live header to the thermal printer via the new interface
+        printer.printLiveHeader(currentPhoneNumber, "SIM $currentSimSlot", callStartTime)
+
         try {
-            model?.let { m ->
+            mainModel?.let { m ->
                 val recognizer = speakerModel?.let { sm ->
                     Recognizer(m, 16000.0f, sm)
                 } ?: Recognizer(m, 16000.0f)
-                
+
                 speechService = SpeechService(recognizer, 16000.0f)
-                speechService?.startListening(this)
-                Log.d(TAG, "Transcription started")
+                speechService?.addListener(this)
+                speechService?.startListening()
+
+                Log.d(TAG, "SpeechService listening engine started.")
             } ?: run {
-                Log.e(TAG, "Model not loaded, cannot start transcription")
+                Log.e(TAG, "Models are not fully unpacked yet, cannot start transcription engine.")
             }
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to start speech service", e)
+            Log.e(TAG, "Failed to start Vosk speech service", e)
         }
     }
 
     private fun stopTranscription() {
+        if (speechService == null) return
+
         speechService?.stop()
         speechService = null
 
-        val durationSeconds = (System.currentTimeMillis() - callStartTime) / 1000
-        val finalTranscript = transcriptBuffer.toString()
+        val callEndTime = System.currentTimeMillis()
+        val durationSeconds = (callEndTime - callStartTime) / 1000
 
-        if (finalTranscript.isNotEmpty()) {
+        // Push the footer to the printer and trigger the paper cut
+        printer.printLiveFooter(durationSeconds)
+
+        val finalTranscriptLines = transcriptBuffer.toString()
+
+        if (finalTranscriptLines.isNotEmpty()) {
             val record = CallRecord(
                 phoneNumber = currentPhoneNumber,
-                timestamp = callStartTime,
+                startTime = callStartTime,
+                endTime = callEndTime,
                 durationSeconds = durationSeconds,
-                transcript = finalTranscript,
-                simSlotUsed = "SIM 1" // TODO: Detect actual SIM slot
+                transcriptLines = finalTranscriptLines,
+                simSlotUsed = "SIM ${CallRepository.currentSimSlot}"
             )
             CallRepository.addRecord(record)
-            printer.cutPaper()
-            Log.d(TAG, "Call record saved and paper cut")
+            Log.d(TAG, "Call record formatted and saved to in-memory repository.")
         }
     }
 
     // RecognitionListener implementation
     override fun onResult(hypothesis: String) {
         val json = JSONObject(hypothesis)
-        val text = json.optString("text")
+        val text = json.optString("text").trim()
         if (text.isEmpty()) return
 
         val spk = json.optJSONArray("spk")
-        val speakerLabel = if (spk != null) {
+        val speakerLabel = if (spk != null && spk.length() > 0) {
             val currentVector = DoubleArray(spk.length()) { spk.getDouble(it) }
             identifySpeaker(currentVector)
         } else {
             "Unknown"
         }
 
-        val finalizedLine = "$speakerLabel: $text"
-        transcriptBuffer.append(finalizedLine).append("\n")
-        printer.printLine(finalizedLine)
-        Log.d(TAG, "Result: $finalizedLine")
+        // Delegate the layout wrapping and timestamping to the ReceiptFormatter
+        val formattedLine = ReceiptFormatter.formatLiveLine(speakerLabel.uppercase(), text)
+
+        transcriptBuffer.append(formattedLine)
+        printer.printLiveLine(formattedLine)
+
+        Log.d(TAG, "Finalized Line: $formattedLine")
     }
 
     override fun onPartialResult(hypothesis: String) {
-        // Not used for final printing
+        // Ignored for the thermal printer to avoid wasting paper on unfinalized guesses
     }
 
     override fun onFinalResult(hypothesis: String) {
@@ -235,11 +288,11 @@ class CallTranscriptionService : Service(), RecognitionListener {
     }
 
     override fun onError(exception: Exception) {
-        Log.e(TAG, "Vosk Error", exception)
+        Log.e(TAG, "Vosk Engine Error", exception)
     }
 
     override fun onTimeout() {
-        Log.d(TAG, "Vosk Timeout")
+        Log.d(TAG, "Vosk Engine Timeout")
     }
 
     private fun identifySpeaker(currentVector: DoubleArray): String {

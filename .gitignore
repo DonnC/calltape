@@ -13,6 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+.agent
+.artifacts
 
 
 # Ignore unpacked Vosk STT and Speaker models in assets

@@ -41,59 +41,42 @@ CallTape is a specialized Android application designed for POS terminals, functi
 *   **Morefun YSDK (AIDL/JAR)**: Hardware-specific integration for controlling integrated thermal printers on Morefun POS terminals. Only put an IPrinter interface, i will only add the morefun sdk when we are done.
 
 ## Implementation Steps
-**Total Duration:** 29m 38s
+**Total Duration:** 35m 18s
 
-### Task_1_Infrastructure: Initialize project structure, add dependencies (Compose, Lifecycle, Coroutines, Vosk, JNA, Morefun SDK), and configure AndroidManifest with necessary permissions (CALL_PHONE, READ_PHONE_STATE, RECORD_AUDIO, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE). Define CallRecord data model and in-memory repository.
+### Task_1_Infrastructure: Initialize project structure, add dependencies, and configure AndroidManifest.
 - **Status:** COMPLETED
-- **Updates:** - Updated build.gradle.kts with Vosk, JNA, and Compose dependencies.
-- **Acceptance Criteria:**
-  - Dependencies successfully sync in build.gradle.kts
-  - Permissions added to AndroidManifest.xml
-  - CallRepository and CallRecord model implemented
 - **Duration:** 2m 12s
 
-### Task_2_TranscriptionAndHardware: Implement CallTranscriptionService as a foreground service. Integrate Vosk STT for offline transcription and TelephonyCallback for call state detection. Implement speaker diarization and the MorefunPrinterImpl for real-time thermal printing.
+### Task_2_TranscriptionAndHardware: Implement CallTranscriptionService and Printer interfaces.
 - **Status:** COMPLETED
-- **Updates:** - Implemented PosPrinter interface and MorefunPrinterImpl.
-- **Acceptance Criteria:**
-  - Foreground service starts/stops based on call state
-  - Vosk engine transcribes audio streams
-  - Printer interface pushes data to thermal printer
-  - Speaker diarization logic implemented
 - **Duration:** 10m 59s
 
-### Task_3_UserInterface: Develop the DialerScreen with a dial pad and SIM selection, and the HistoryScreen to display call records. Implement Jetpack Navigation 3 for screen transitions and connect UI to the data layer via ViewModels.
+### Task_3_UserInterface: Develop Dialer and History screens.
 - **Status:** COMPLETED
-- **Updates:** - Developed CallViewModel to bridge Data and UI.
-- **Acceptance Criteria:**
-  - DialerScreen allows number input and call initiation
-  - HistoryScreen displays call logs from repository
-  - Navigation between screens is seamless
-  - UI follows Material 3 guidelines
 - **Duration:** 4m 48s
 
-### Task_4_PackageAndMockPrinter: Refactor the project to use the package 'zw.co.donnclab.calltape' throughout (Gradle, Manifest, and Source files). Implement the MockPrinterImpl using a MutableStateFlow to track and expose printed lines for testing.
+### Task_4_PackageAndMockPrinter: Refactor to zw.co.donnclab.calltape and implement MockPrinter.
 - **Status:** COMPLETED
-- **Updates:** - Consolidated project structure under 'zw.co.donnclab.calltape'.
-- **Acceptance Criteria:**
-  - Package renamed to 'zw.co.donnclab.calltape' in build.gradle.kts and AndroidManifest.xml
-  - All source files and imports updated to the new package
-  - MockPrinterImpl implemented and capturing print data in a StateFlow
-  - Project builds successfully
 - **Duration:** 6m 22s
 
-### Task_5_UIOverhaulAndVerify: Overhaul the UI for a modern POS look, replacing text-based buttons with intuitive icons for actions like printing and clearing history. Perform final end-to-end verification, ensuring stability and alignment with requirements. Instruct critic_agent to verify app stability and requirements alignment.
+### Task_5_UIOverhaulAndVerify: Modernize UI and verify.
 - **Status:** COMPLETED
-- **Updates:** - Redesigned HistoryScreen and DialerScreen with a modern, professional POS aesthetic.
-- Replaced text-based buttons with intuitive icons (Print, Delete).
-- Introduced a professional POS-inspired color palette and typography.
-- Updated all UI components to use zw.co.donnclab.calltape package.
-- Verified that @Previews are working and reflect the new design.
-- **Acceptance Criteria:**
-  - UI modernized with icons replacing text buttons
-  - Build pass
-  - App does not crash
-  - All existing tests pass
-  - Critic agent verifies application stability and alignment with POS requirements
 - **Duration:** 5m 17s
+
+### Task_6_RefinementsAndAlignment: Add SIM selection row to Dialer, integrate SIM slot in CallRecord, and fix Android 16KB page alignment.
+- **Status:** COMPLETED
+- **Duration:** 3m 16s
+
+### Task_7_StabilityAndPermissions: Implement runtime permission handling and ensure CallTranscriptionService is started as a foreground service.
+- **Status:** COMPLETED
+- **Updates:** - Implemented comprehensive runtime permission handling in MainActivity.
+- Added a PermissionRequiredScreen to ensure users grant Phone and Audio permissions before app usage.
+- Integrated Foreground Service start logic in MainActivity.
+- Added crash protection and permission checks in DialerScreen to handle missing Telephony permissions gracefully.
+- Verified build stability.
+- **Acceptance Criteria:**
+  - Runtime permissions (Phone, Audio) requested on startup
+  - CallTranscriptionService starts successfully
+  - DialerScreen does not crash due to missing permissions
+- **Duration:** 2m 24s
 

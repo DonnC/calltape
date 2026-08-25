@@ -4,12 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import zw.co.donnclab.calltape.data.CallRecord
 import zw.co.donnclab.calltape.data.CallRepository
-import zw.co.donnclab.calltape.hardware.MockPrinterImpl
+import zw.co.donnclab.calltape.hardware.LoggerPrinterImplI
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class CallViewModel : ViewModel() {
     val callHistory: StateFlow<List<CallRecord>> = CallRepository.callHistory
+
+    private val _selectedSimSlot = MutableStateFlow(1)
+    val selectedSimSlot: StateFlow<Int> = _selectedSimSlot.asStateFlow()
+
+    fun selectSimSlot(slot: Int) {
+        _selectedSimSlot.value = slot
+    }
 
     fun clearHistory() {
         CallRepository.clearHistory()
@@ -17,8 +26,8 @@ class CallViewModel : ViewModel() {
 
     fun printTranscript(record: CallRecord) {
         viewModelScope.launch {
-            MockPrinterImpl.printFullTranscript(record.transcript)
-            MockPrinterImpl.cutPaper()
+            LoggerPrinterImplI.printFullTranscript(record.transcript)
+            LoggerPrinterImplI.cutPaper()
         }
     }
 }

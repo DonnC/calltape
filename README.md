@@ -94,16 +94,16 @@ app/
 
 Open the project in **Android Studio** and run it on an emulator or physical device.
 
-By default, the app uses `MockPrinterImpl`. Watch your `Logcat` filter for `CallTape-MockPrinter` to see real-time thermal roll outputs as you speak!
+By default, the app uses `LoggerPrinterImpl`. Watch your `Logcat` filter for `CallTape-LogPrinter` to see real-time thermal roll outputs as you speak!
 
 ---
 
 ## 🔌 Implementing Custom POS Hardware Printers
 
-To add physical printing support for your specific POS hardware (Morefun, Sunmi, Pax, Nexgo, etc.), implement the `PosPrinter` interface and replace the active implementation:
+To add physical printing support for your specific POS hardware (Morefun, Sunmi, Pax, Nexgo, etc.), implement the `IPosPrinter` interface and replace the active implementation:
 
 ```kotlin
-class MyCustomPosPrinter(private val vendorSdk: VendorPrinterManager) : PosPrinter {
+class MyCustomPosPrinter(private val vendorSdk: VendorPrinterManager) : IPosPrinter {
 
     override fun printLine(text: String) {
         vendorSdk.printText("$text\n")
@@ -126,5 +126,5 @@ class MyCustomPosPrinter(private val vendorSdk: VendorPrinterManager) : PosPrint
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
 
