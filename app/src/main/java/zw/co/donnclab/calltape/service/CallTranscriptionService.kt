@@ -3,7 +3,6 @@ package zw.co.donnclab.calltape.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -25,6 +24,7 @@ import zw.co.donnclab.calltape.data.CallRepository
 import zw.co.donnclab.calltape.hardware.IPosPrinter
 import zw.co.donnclab.calltape.hardware.LoggerPrinterImplI
 import zw.co.donnclab.calltape.utils.ReceiptFormatter
+import java.io.File
 import java.io.IOException
 import kotlin.math.sqrt
 
@@ -41,7 +41,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
     private var speechService: SpeechService? = null
 
     private var mainModel: Model? = null
-    private var speakerModel: SpkModel? = null
+    private var speakerModel: SpeakerModel? = null
 
     private val printer: IPosPrinter = LoggerPrinterImplI
 
@@ -93,8 +93,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
                 currentPhoneNumber = it.getStringExtra("EXTRA_PHONE_NUMBER") ?: "Unknown"
             }
             if (it.hasExtra("EXTRA_SIM_SLOT")) {
-                // Update your in-memory repository or local variable so the printer knows
-                CallRepository.currentSimSlot = it.getStringExtra("EXTRA_SIM_SLOT") ?: "Unknown"
+                CallRepository.currentSimSlot = it.getIntExtra("EXTRA_SIM_SLOT", 1)
             }
         }
         return START_STICKY
@@ -164,8 +163,8 @@ class CallTranscriptionService : Service(), RecognitionListener {
 
                 Log.d(TAG, "Unpacking Vosk speaker model from assets...")
                 StorageService.unpack(this, "spk-model", "spk",
-                    { spkModel ->
-                        this.speakerModel = spkModel
+                    { _ ->
+                        this.speakerModel = SpeakerModel(File(filesDir, "spk").absolutePath)
                         Log.d(TAG, "Speaker model loaded successfully.")
                     },
                     { exception ->
@@ -216,8 +215,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
                 } ?: Recognizer(m, 16000.0f)
 
                 speechService = SpeechService(recognizer, 16000.0f)
-                speechService?.addListener(this)
-                speechService?.startListening()
+                speechService?.startListening(this)
 
                 Log.d(TAG, "SpeechService listening engine started.")
             } ?: run {

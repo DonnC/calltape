@@ -1,4 +1,4 @@
 <resources>
 
-    <style name="Theme.CallTape" parent="Theme.MaterialComponents.Light" />
+    <style name="Theme.CallTape" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

@@ -26,8 +26,7 @@ class CallViewModel : ViewModel() {
 
     fun printTranscript(record: CallRecord) {
         viewModelScope.launch {
-            LoggerPrinterImplI.printFullTranscript(record.transcript)
-            LoggerPrinterImplI.cutPaper()
+            LoggerPrinterImplI.printFullTranscript(record)
         }
     }
 }

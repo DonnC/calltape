@@ -13,9 +13,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Backspace
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +53,7 @@ fun DialerScreen(
                 title = { Text("New Call", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -88,6 +87,7 @@ fun DialerScreen(
                         text = phoneNumber.ifEmpty { " " },
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.displayMedium.copy(
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
                             fontFamily = FontFamily.Monospace,
@@ -101,7 +101,7 @@ fun DialerScreen(
                             onClick = { phoneNumber = phoneNumber.dropLast(1) }
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Rounded.Backspace, 
+                                Icons.Default.Clear, 
                                 contentDescription = "Backspace",
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                             )
@@ -146,7 +146,7 @@ fun DialerScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            Icons.Rounded.Warning,
+                            Icons.Default.Warning,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error
                         )
@@ -316,7 +316,7 @@ fun SimSelectionAndCallButton(
             enabled = phoneNumber.isNotEmpty()
         ) {
             Icon(
-                Icons.Rounded.Call, 
+                Icons.Default.Call, 
                 contentDescription = "Call",
                 modifier = Modifier.size(32.dp)
             )
@@ -331,7 +331,7 @@ private fun initiateCall(context: Context, phoneNumber: String, accountHandle: P
 
     val serviceIntent = Intent(context, CallTranscriptionService::class.java).apply {
         putExtra("EXTRA_PHONE_NUMBER", phoneNumber)
-        putExtra("EXTRA_SIM_SLOT", "SIM ${simSlot + 1}")
+        putExtra("EXTRA_SIM_SLOT", simSlot + 1)
     }
     context.startService(serviceIntent) // Updates variables in onStartCommand
 

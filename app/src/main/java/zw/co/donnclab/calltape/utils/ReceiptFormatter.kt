@@ -22,6 +22,12 @@ object ReceiptFormatter {
         """.trimIndent()
     }
 
+    fun formatLiveLine(speaker: String, text: String): String {
+        val time = timeFormat.format(Date())
+        val wrappedText = text.chunked(32).joinToString("\n          ")
+        return "\n$time  $speaker:\n          $wrappedText\n"
+    }
+
     @SuppressLint("DefaultLocale")
     fun buildLiveFooter(durationSeconds: Long): String {
         val durationStr = String.format("%02d:%02d", durationSeconds / 60, durationSeconds % 60)

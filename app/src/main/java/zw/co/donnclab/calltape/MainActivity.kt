@@ -23,7 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import zw.co.donnclab.calltape.service.CallTranscriptionService
 import zw.co.donnclab.calltape.ui.DialerScreen
-import zw.co.donnclab.calltape.ui.HistoryScreen
+import zw.co.donnclab.calltape.ui.HomeScreen
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
                     when (currentScreen) {
                         is Screen.Home -> {
-                            HistoryScreen(
+                            HomeScreen(
                                 viewModel = callViewModel,
                                 onNavigateToDialer = { currentScreen = Screen.Dialer }
                             )

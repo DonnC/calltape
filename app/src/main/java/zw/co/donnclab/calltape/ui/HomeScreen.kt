@@ -5,13 +5,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -27,13 +28,13 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(
+fun HomeScreen(
     viewModel: CallViewModel,
     onNavigateToDialer: () -> Unit
 ) {
     val callHistory by viewModel.callHistory.collectAsState()
 
-    HistoryContent(
+    HomeContent(
         callHistory = callHistory,
         onClearHistory = { viewModel.clearHistory() },
         onPrintRecord = { viewModel.printTranscript(it) },
@@ -43,7 +44,7 @@ fun HistoryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryContent(
+fun HomeContent(
     callHistory: List<CallRecord>,
     onClearHistory: () -> Unit,
     onPrintRecord: (CallRecord) -> Unit,
@@ -65,7 +66,7 @@ fun HistoryContent(
                     if (callHistory.isNotEmpty()) {
                         IconButton(onClick = onClearHistory) {
                             Icon(
-                                Icons.Rounded.Delete, 
+                                Icons.Default.Delete, 
                                 contentDescription = "Clear History",
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -86,7 +87,7 @@ fun HistoryContent(
                 shape = MaterialTheme.shapes.large
             ) {
                 Icon(
-                    Icons.Rounded.Add, 
+                    Icons.Default.Call,
                     contentDescription = "New Call",
                     modifier = Modifier.size(28.dp)
                 )
@@ -164,7 +165,7 @@ fun CallRecordCard(
                         )
                     )
                     Text(
-                        text = formatTimestamp(record.timestamp),
+                        text = formatTimestamp(record.startTime),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -176,7 +177,7 @@ fun CallRecordCard(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                 ) {
                     Icon(
-                        Icons.Rounded.Print, 
+                        Icons.Default.Share, 
                         contentDescription = "Print",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
@@ -189,11 +190,11 @@ fun CallRecordCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 InfoChip(
-                    icon = Icons.Rounded.Schedule,
+                    icon = Icons.Default.Info,
                     text = formatDuration(record.durationSeconds)
                 )
                 InfoChip(
-                    icon = Icons.Rounded.SettingsInputAntenna,
+                    icon = Icons.Default.Settings,
                     text = record.simSlotUsed
                 )
             }
@@ -204,7 +205,7 @@ fun CallRecordCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = record.transcript,
+                    text = record.transcriptLines,
                     style = MaterialTheme.typography.bodySmall.copy(
                         lineHeight = 18.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -221,7 +222,7 @@ fun CallRecordCard(
 
 @Composable
 fun InfoChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     text: String
 ) {
     Surface(
@@ -263,25 +264,25 @@ private fun formatTimestamp(timestamp: Long): String {
 
 @Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
 @Composable
-fun HistoryScreenPreview() {
+fun HomeScreenPreview() {
     CallTapeTheme {
         val mockRecords = listOf(
             CallRecord(
                 phoneNumber = "+263 77 123 4567",
-                timestamp = System.currentTimeMillis(),
+                startTime = System.currentTimeMillis(),
                 durationSeconds = 125,
-                transcript = "Hello, this is a test transcript for the call tape application. I am speaking clearly and demonstrating the UI features for the new POS dashboard design.",
+                transcriptLines = "Hello, this is a test transcript for the call tape application. I am speaking clearly and demonstrating the UI features for the new POS dashboard design.",
                 simSlotUsed = "SIM 1"
             ),
             CallRecord(
                 phoneNumber = "+263 71 987 6543",
-                timestamp = System.currentTimeMillis() - 3600000,
+                startTime = System.currentTimeMillis() - 3600000,
                 durationSeconds = 45,
-                transcript = "Quick call to confirm the meeting tomorrow at 10 AM. We will discuss the new project requirements and the hardware integration.",
+                transcriptLines = "Quick call to confirm the meeting tomorrow at 10 AM. We will discuss the new project requirements and the hardware integration.",
                 simSlotUsed = "SIM 2"
             )
         )
-        HistoryContent(
+        HomeContent(
             callHistory = mockRecords,
             onClearHistory = {},
             onPrintRecord = {},
