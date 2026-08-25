@@ -377,26 +377,26 @@ fun SimSelectionAndCallButton(
 
 private fun initiateCall(context: Context, phoneNumber: String, accountHandle: PhoneAccountHandle?, simSlot: Int) {
     if (phoneNumber.isEmpty()) return
+    Log.i("DialerScreen", "initiateCall: $phoneNumber on SIM $simSlot")
 
+    // Update global state
+    zw.co.donnclab.calltape.telecom.CallStateManager.activePhoneNumber.value = phoneNumber
     CallRepository.currentSimSlot = simSlot
 
-    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
     val uri = Uri.fromParts("tel", phoneNumber, null)
-    val extras = Bundle().apply {
+    val callIntent = Intent(Intent.ACTION_CALL, uri).apply {
         if (accountHandle != null) {
-            putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
+            putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
         }
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     try {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-            // Using TelecomManager directly instead of Intent.ACTION_CALL
-            // forces the OS to use our InCallService if we are the default dialer.
-            telecomManager.placeCall(uri, extras)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            context.startActivity(callIntent)
         }
-    } catch (e: SecurityException) {
-        // Handle permissions
-        Log.e("DialerScreen", "Permission denied", e)
+    } catch (e: Exception) {
+        Log.e("DialerScreen", "Failed to place call", e)
     }
 }
 

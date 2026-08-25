@@ -1,12 +1,11 @@
 package zw.co.donnclab.calltape
 
 import android.Manifest
-import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.telecom.TelecomManager
+import android.telephony.TelephonyManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,8 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
+import zw.co.donnclab.calltape.service.CallTranscriptionService
 import zw.co.donnclab.calltape.service.VoskModelManager
-import zw.co.donnclab.calltape.telecom.CallTapeInCallService
+import zw.co.donnclab.calltape.telecom.CallStateManager
 import zw.co.donnclab.calltape.ui.ActiveCallScreen
 import zw.co.donnclab.calltape.ui.DialerScreen
 import zw.co.donnclab.calltape.ui.HomeScreen
@@ -31,29 +31,27 @@ import zw.co.donnclab.calltape.viewmodel.CallViewModel
 class MainActivity : ComponentActivity() {
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions.values.all { it }) {
-            requestDefaultDialer()
+    ) { result: Map<String, Boolean> ->
+        android.util.Log.i("MainActivity", "Permissions result: $result")
+        if (result.values.all { it }) {
+            startTranscriptionService()
         }
-    }
-
-    private val dialerRoleLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        VoskModelManager.init(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.i("MainActivity", "onCreate: Requesting permissions")
 
         requestPermissionsLauncher.launch(
             arrayOf(
                 Manifest.permission.CALL_PHONE,
                 Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.MANAGE_OWN_CALLS
+                Manifest.permission.READ_CALL_LOG
             )
         )
+
+        VoskModelManager.init(this)
 
         setContent {
             CallTapeTheme {
@@ -62,24 +60,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestDefaultDialer() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(RoleManager::class.java)
-            if (roleManager?.isRoleHeld(RoleManager.ROLE_DIALER) == false) {
-                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
-                dialerRoleLauncher.launch(intent)
-                return
-            }
+    private fun startTranscriptionService() {
+        android.util.Log.i("MainActivity", "startTranscriptionService called")
+        val intent = Intent(this, CallTranscriptionService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
         } else {
-            val telecomManager = getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            if (packageName != telecomManager.defaultDialerPackage) {
-                val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER)
-                    .putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
-                dialerRoleLauncher.launch(intent)
-                return
-            }
+            startService(intent)
         }
-        VoskModelManager.init(this)
     }
 }
 
@@ -93,12 +81,19 @@ enum class ScreenTab(val title: String, val icon: ImageVector) {
 fun MainAppRouter(
     viewModel: CallViewModel = viewModel()
 ) {
-    val activeCall by CallTapeInCallService.activeCallState.collectAsState()
+    val callState by CallStateManager.callState.collectAsState()
     var selectedTab by remember { mutableStateOf(ScreenTab.HISTORY) }
 
-    LaunchedEffect(activeCall) {
-        if (activeCall != null) {
-            selectedTab = ScreenTab.ACTIVE_CALL
+    LaunchedEffect(callState) {
+        android.util.Log.i("MainActivity", "LaunchedEffect: callState changed to $callState")
+        when (callState) {
+            TelephonyManager.CALL_STATE_OFFHOOK, 
+            TelephonyManager.CALL_STATE_RINGING -> {
+                selectedTab = ScreenTab.ACTIVE_CALL
+            }
+            TelephonyManager.CALL_STATE_IDLE -> {
+                selectedTab = ScreenTab.HISTORY
+            }
         }
     }
 
@@ -126,9 +121,7 @@ fun MainAppRouter(
                     viewModel = viewModel,
                     onBack = { selectedTab = ScreenTab.HISTORY }
                 )
-                ScreenTab.ACTIVE_CALL -> ActiveCallScreen(
-                    call = activeCall
-                )
+                ScreenTab.ACTIVE_CALL -> ActiveCallScreen()
             }
         }
     }

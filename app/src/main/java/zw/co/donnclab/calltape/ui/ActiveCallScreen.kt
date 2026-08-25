@@ -1,6 +1,6 @@
 package zw.co.donnclab.calltape.ui
 
-import android.telecom.Call
+import android.telephony.TelephonyManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -9,19 +9,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import zw.co.donnclab.calltape.telecom.CallTapeInCallService
+import zw.co.donnclab.calltape.telecom.CallStateManager
 
 @Composable
-fun ActiveCallScreen(call: Call?) {
-    var isSpeakerOn by remember { mutableStateOf(false) }
-    val liveTranscript by CallTapeInCallService.activeTranscript.collectAsState()
-    val callState = call?.state
+fun ActiveCallScreen() {
+    val callState by CallStateManager.callState.collectAsState()
+    val liveTranscript by CallStateManager.liveTranscript.collectAsState()
+    val phoneNumber by CallStateManager.activePhoneNumber.collectAsState()
     
     val stateText = when (callState) {
-        Call.STATE_DIALING -> "Dialing..."
-        Call.STATE_RINGING -> "Incoming Call..."
-        Call.STATE_ACTIVE -> "Call Active"
-        Call.STATE_DISCONNECTED -> "Call Ended"
+        TelephonyManager.CALL_STATE_RINGING -> "Incoming Call: $phoneNumber"
+        TelephonyManager.CALL_STATE_OFFHOOK -> "Call Active: $phoneNumber"
+        TelephonyManager.CALL_STATE_IDLE -> "Call Ended"
         else -> "Connecting..."
     }
 
@@ -41,17 +40,15 @@ fun ActiveCallScreen(call: Call?) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+            // Note: Speaker and End Call might need system-level implementation or specific hardware APIs on restricted ROMs
             Button(
-                colors = ButtonDefaults.buttonColors(containerColor = if (isSpeakerOn) Color.Blue else Color.Gray),
-                onClick = {
-                    isSpeakerOn = !isSpeakerOn
-                    CallTapeInCallService.instance?.setSpeakerphoneOn(isSpeakerOn)
-                }
+                onClick = { /* Implement if possible */ },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
             ) { Text("Speaker") }
             
             Button(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                onClick = { CallTapeInCallService.instance?.endActiveCall() }
+                onClick = { /* Implement if possible */ }
             ) { Text("End Call") }
         }
     }
