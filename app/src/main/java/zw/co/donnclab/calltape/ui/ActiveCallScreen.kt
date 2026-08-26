@@ -2,7 +2,6 @@ package zw.co.donnclab.calltape.ui
 
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import androidx.compose.foundation.background
@@ -27,10 +26,7 @@ fun ActiveCallScreen() {
     LaunchedEffect(callState) {
         android.util.Log.i("ActiveCallScreen", "UI State Change: callState=$callState, status=$status")
     }
-    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val telecomManager = remember { context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager }
-
-    var isSpeakerOn by remember { mutableStateOf(audioManager.isSpeakerphoneOn) }
 
     val stateText = when (callState) {
         TelephonyManager.CALL_STATE_RINGING -> "Incoming Call: $phoneNumber"
@@ -49,7 +45,7 @@ fun ActiveCallScreen() {
         Spacer(modifier = Modifier.height(32.dp))
         Text(stateText, color = Color.White, style = MaterialTheme.typography.titleLarge)
         Text(status, color = Color.Yellow, style = MaterialTheme.typography.bodyMedium)
-        Text("Audio Mode: ${audioManager.mode}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+        Text("Audio capture: direct call source; speaker routing disabled", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
         Spacer(modifier = Modifier.height(32.dp))
 
         // Virtual Receipt Output
@@ -94,32 +90,6 @@ fun ActiveCallScreen() {
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) { Text("Decline") }
             } else {
-                Button(
-                    onClick = {
-                        isSpeakerOn = !isSpeakerOn
-                        try {
-                            // ROMs vary on which mode works for speakerphone hijack
-                            if (isSpeakerOn) {
-                                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                                audioManager.isSpeakerphoneOn = true
-                            } else {
-                                audioManager.mode = AudioManager.MODE_NORMAL
-                                audioManager.isSpeakerphoneOn = false
-                            }
-                            
-                            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
-                            audioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVolume, AudioManager.FLAG_SHOW_UI)
-                            
-                            android.util.Log.i("ActiveCallScreen", "Manual Speaker Toggle: $isSpeakerOn, Mode: ${audioManager.mode}")
-                        } catch (e: Exception) {
-                            android.util.Log.e("ActiveCallScreen", "Failed to toggle speaker", e)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSpeakerOn) Color.Blue else Color.Gray
-                    )
-                ) { Text(if (isSpeakerOn) "Speaker ON" else "Speaker OFF") }
-
                 Button(
                     onClick = {
                         try {

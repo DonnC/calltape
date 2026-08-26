@@ -50,8 +50,7 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_CALL_LOG,
-                Manifest.permission.ANSWER_PHONE_CALLS,
-                Manifest.permission.MANAGE_OWN_CALLS
+                Manifest.permission.ANSWER_PHONE_CALLS
             )
         )
 
@@ -82,7 +81,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startTranscriptionService() {
-        android.util.Log.i("MainActivity", "startTranscriptionService called")
+        android.util.Log.i("MainActivity", "startTranscriptionService called: permissions accepted")
         val intent = Intent(this, CallTranscriptionService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)

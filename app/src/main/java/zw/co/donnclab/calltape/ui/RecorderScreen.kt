@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,6 +51,7 @@ import zw.co.donnclab.calltape.utils.ReceiptFormatter
 import kotlin.math.sqrt
 
 private const val RECORDER_SAMPLE_RATE = 16_000
+private const val RECORDER_TAG = "CallTape-Recorder"
 
 /**
  * A deliberately simple microphone/Vosk diagnostic screen.
@@ -61,11 +64,14 @@ private const val RECORDER_SAMPLE_RATE = 16_000
 fun RecorderScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val modelsReady by VoskModelManager.isReady.collectAsState()
+    val loadingStatus by VoskModelManager.loadingStatus.collectAsState()
     val model = VoskModelManager.mainModel
 
     var recordingJob by remember { mutableStateOf<Job?>(null) }
     var recorder by remember { mutableStateOf<AudioRecord?>(null) }
     var transcript by remember { mutableStateOf("") }
+    var partialTranscript by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Ready") }
     var rms by remember { mutableFloatStateOf(0f) }
     var framesRead by remember { mutableIntStateOf(0) }
@@ -86,11 +92,14 @@ fun RecorderScreen() {
 
     fun startRecording() {
         if (recordingJob != null) return
+        Log.i(RECORDER_TAG, "Start requested")
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Log.e(RECORDER_TAG, "RECORD_AUDIO permission is not granted")
             status = "RECORD_AUDIO permission is not granted"
             return
         }
         if (model == null) {
+            Log.e(RECORDER_TAG, "Vosk model is not loaded")
             status = "Speech model is still loading"
             return
         }
@@ -101,11 +110,13 @@ fun RecorderScreen() {
             AudioFormat.ENCODING_PCM_16BIT
         )
         if (minimumBuffer <= 0) {
+            Log.e(RECORDER_TAG, "Invalid AudioRecord minimum buffer: $minimumBuffer")
             status = "Device rejected 16 kHz microphone format ($minimumBuffer)"
             return
         }
 
         transcript = ""
+        partialTranscript = ""
         rms = 0f
         framesRead = 0
         status = "Opening microphone..."
@@ -124,17 +135,20 @@ fun RecorderScreen() {
         }
 
         if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(RECORDER_TAG, "AudioRecord rejected MIC source; state=${audioRecord.state}")
             audioRecord.release()
             status = "Microphone could not be initialized"
             return
         }
 
         recorder = audioRecord
+        Log.i(RECORDER_TAG, "AudioRecord initialized: source=${audioRecord.audioSource}, buffer=$minimumBuffer")
         recordingJob = scope.launch(Dispatchers.IO) {
             val recognizer = Recognizer(model, RECORDER_SAMPLE_RATE.toFloat())
             val buffer = ShortArray(minimumBuffer / 2)
             try {
                 audioRecord.startRecording()
+                Log.i(RECORDER_TAG, "Recording started")
                 withContext(Dispatchers.Main) { status = "Recording microphone + transcribing" }
 
                 while (isActive && audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
@@ -150,9 +164,19 @@ fun RecorderScreen() {
 
                     if (recognizer.acceptWaveForm(buffer, read)) {
                         val text = JSONObject(recognizer.result).optString("text").trim()
+                        Log.i(RECORDER_TAG, "Vosk final: '$text'")
                         if (text.isNotEmpty()) {
                             val line = ReceiptFormatter.formatLiveLine("MIC", text)
-                            withContext(Dispatchers.Main) { transcript += line }
+                            withContext(Dispatchers.Main) {
+                                transcript += line
+                                partialTranscript = ""
+                            }
+                        }
+                    } else {
+                        val partial = JSONObject(recognizer.partialResult).optString("partial").trim()
+                        if (partial.isNotEmpty()) {
+                            Log.d(RECORDER_TAG, "Vosk partial: '$partial'")
+                            withContext(Dispatchers.Main) { partialTranscript = partial }
                         }
                     }
 
@@ -167,9 +191,13 @@ fun RecorderScreen() {
                 }
             } finally {
                 val finalText = JSONObject(recognizer.finalResult).optString("text").trim()
+                Log.i(RECORDER_TAG, "Vosk final-on-stop: '$finalText'")
                 if (finalText.isNotEmpty()) {
                     val line = ReceiptFormatter.formatLiveLine("MIC", finalText)
-                    withContext(Dispatchers.Main) { transcript += line }
+                    withContext(Dispatchers.Main) {
+                        transcript += line
+                        partialTranscript = ""
+                    }
                 }
                 recognizer.close()
                 withContext(Dispatchers.Main) {
@@ -210,7 +238,7 @@ fun RecorderScreen() {
                 Text("Status: $status")
                 Text("Input level: ${"%.0f".format(rms)} / 32768")
                 Text("Frames read: $framesRead")
-                Text("Model: ${if (model != null) "loaded" else VoskModelManager.loadingStatus.value}")
+                Text("Model: ${if (modelsReady && model != null) "loaded" else loadingStatus}")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -233,12 +261,20 @@ fun RecorderScreen() {
         }
 
         Surface(modifier = Modifier.fillMaxWidth(), color = Color.DarkGray) {
-            Text(
-                text = transcript.ifEmpty { "Transcript output will appear here..." },
-                modifier = Modifier.padding(12.dp),
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = transcript.ifEmpty { "Transcript output will appear here..." },
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace
+                )
+                if (partialTranscript.isNotEmpty()) {
+                    Text(
+                        text = "\n[partial] $partialTranscript",
+                        color = Color.Yellow,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
         }
     }
 }
