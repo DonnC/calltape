@@ -15,4 +15,6 @@ object CallStateManager {
     val activePhoneNumber = MutableStateFlow("")
     
     val liveTranscript = MutableStateFlow("")
+
+    val statusMessage = MutableStateFlow("Service Idle")
 }

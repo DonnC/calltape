@@ -21,6 +21,7 @@ fun ActiveCallScreen() {
     val callState by CallStateManager.callState.collectAsState()
     val liveTranscript by CallStateManager.liveTranscript.collectAsState()
     val phoneNumber by CallStateManager.activePhoneNumber.collectAsState()
+    val status by CallStateManager.statusMessage.collectAsState()
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val telecomManager = remember { context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager }
 
@@ -42,6 +43,8 @@ fun ActiveCallScreen() {
     ) {
         Spacer(modifier = Modifier.height(32.dp))
         Text(stateText, color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Text(status, color = Color.Yellow, style = MaterialTheme.typography.bodyMedium)
+        Text("Audio Mode: ${audioManager.mode}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
         Spacer(modifier = Modifier.height(32.dp))
 
         // Virtual Receipt Output
@@ -66,6 +69,10 @@ fun ActiveCallScreen() {
                     onClick = {
                         try {
                             telecomManager.acceptRingingCall()
+                            // Immediately try to route audio
+                            audioManager.mode = AudioManager.MODE_IN_CALL
+                            audioManager.isSpeakerphoneOn = true
+                            android.util.Log.i("ActiveCallScreen", "Call answered. Routing audio to speaker.")
                         } catch (e: SecurityException) {
                             android.util.Log.e("ActiveCallScreen", "Failed to answer call", e)
                         }
@@ -88,9 +95,24 @@ fun ActiveCallScreen() {
                     onClick = {
                         isSpeakerOn = !isSpeakerOn
                         try {
-                            audioManager.mode = AudioManager.MODE_IN_CALL
-                            audioManager.isSpeakerphoneOn = isSpeakerOn
-                            android.util.Log.i("ActiveCallScreen", "Speaker toggled: $isSpeakerOn")
+                            // Cycle through modes to find one that works on this ROM
+                            if (isSpeakerOn) {
+                                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                                audioManager.isSpeakerphoneOn = true
+                                if (!audioManager.isSpeakerphoneOn) {
+                                    audioManager.mode = AudioManager.MODE_IN_CALL
+                                    audioManager.isSpeakerphoneOn = true
+                                }
+                            } else {
+                                audioManager.mode = AudioManager.MODE_NORMAL
+                                audioManager.isSpeakerphoneOn = false
+                            }
+                            
+                            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
+                            audioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVolume, AudioManager.FLAG_SHOW_UI)
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+                            
+                            android.util.Log.i("ActiveCallScreen", "Speaker toggled: $isSpeakerOn, Mode: ${audioManager.mode}")
                         } catch (e: Exception) {
                             android.util.Log.e("ActiveCallScreen", "Failed to toggle speaker", e)
                         }

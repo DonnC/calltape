@@ -30,8 +30,11 @@ import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { result: Map<String, Boolean> ->
+        ActivityResultContracts.RequestMultiplePermissions(),
+        ::onPermissionsResult
+    )
+
+    private fun onPermissionsResult(result: Map<String, Boolean>) {
         android.util.Log.i("MainActivity", "Permissions result: $result")
         if (result.values.all { it }) {
             startTranscriptionService()
@@ -86,13 +89,15 @@ fun MainAppRouter(
     var selectedTab by remember { mutableStateOf(ScreenTab.HISTORY) }
 
     LaunchedEffect(callState) {
-        android.util.Log.i("MainActivity", "LaunchedEffect: callState changed to $callState")
+        android.util.Log.i("MainActivity", "LaunchedEffect Triggered: callState=$callState")
         when (callState) {
             TelephonyManager.CALL_STATE_OFFHOOK, 
             TelephonyManager.CALL_STATE_RINGING -> {
+                android.util.Log.i("MainActivity", "Switching to ACTIVE_CALL tab")
                 selectedTab = ScreenTab.ACTIVE_CALL
             }
             TelephonyManager.CALL_STATE_IDLE -> {
+                android.util.Log.i("MainActivity", "Switching to HISTORY tab")
                 selectedTab = ScreenTab.HISTORY
             }
         }
