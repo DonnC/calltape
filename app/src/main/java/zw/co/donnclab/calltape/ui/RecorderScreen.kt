@@ -146,6 +146,8 @@ fun RecorderScreen() {
         recordingJob = scope.launch(Dispatchers.IO) {
             val recognizer = Recognizer(model, RECORDER_SAMPLE_RATE.toFloat())
             val buffer = ShortArray(minimumBuffer / 2)
+            var lastPcmLogAt = 0L
+            var zeroReadCount = 0
             try {
                 audioRecord.startRecording()
                 Log.i(RECORDER_TAG, "Recording started")
@@ -153,14 +155,35 @@ fun RecorderScreen() {
 
                 while (isActive && audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                     val read = audioRecord.read(buffer, 0, buffer.size)
-                    if (read <= 0) continue
+                    if (read <= 0) {
+                        zeroReadCount++
+                        val now = System.currentTimeMillis()
+                        if (now - lastPcmLogAt >= 1000) {
+                            lastPcmLogAt = now
+                            Log.w(RECORDER_TAG, "AudioRecord read returned $read; zeroReadCount=$zeroReadCount")
+                        }
+                        continue
+                    }
 
                     var sum = 0.0
+                    var peak = 0
+                    var nonZeroSamples = 0
                     for (index in 0 until read) {
-                        val sample = buffer[index].toDouble()
+                        val rawSample = buffer[index].toInt()
+                        if (rawSample != 0) nonZeroSamples++
+                        peak = maxOf(peak, kotlin.math.abs(rawSample))
+                        val sample = rawSample.toDouble()
                         sum += sample * sample
                     }
                     val level = sqrt(sum / read).toFloat()
+                    val now = System.currentTimeMillis()
+                    if (now - lastPcmLogAt >= 1000) {
+                        lastPcmLogAt = now
+                        Log.i(
+                            RECORDER_TAG,
+                            "PCM alive: read=$read, rms=${"%.1f".format(level)}, peak=$peak, nonZero=$nonZeroSamples/$read"
+                        )
+                    }
 
                     if (recognizer.acceptWaveForm(buffer, read)) {
                         val text = JSONObject(recognizer.result).optString("text").trim()

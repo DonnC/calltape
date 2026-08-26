@@ -212,13 +212,13 @@ class CallTranscriptionService : Service(), RecognitionListener {
             return
         }
 
-        recognitionJob = serviceScope.launch {
+        recognitionJob = serviceScope.launch @androidx.annotation.RequiresPermission(android.Manifest.permission.RECORD_AUDIO) {
             val recognizer = VoskModelManager.speakerModel?.let { sm ->
                 Recognizer(model, SAMPLE_RATE.toFloat(), sm)
             } ?: Recognizer(model, SAMPLE_RATE.toFloat())
 
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-            
+
             audioRecord = openDirectCallAudioRecord(bufferSize)
 
             if (audioRecord == null) {
