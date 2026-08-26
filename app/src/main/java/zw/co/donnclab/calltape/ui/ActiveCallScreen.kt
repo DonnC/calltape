@@ -1,6 +1,7 @@
 package zw.co.donnclab.calltape.ui
 
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
@@ -22,6 +23,10 @@ fun ActiveCallScreen() {
     val liveTranscript by CallStateManager.liveTranscript.collectAsState()
     val phoneNumber by CallStateManager.activePhoneNumber.collectAsState()
     val status by CallStateManager.statusMessage.collectAsState()
+    
+    LaunchedEffect(callState) {
+        android.util.Log.i("ActiveCallScreen", "UI State Change: callState=$callState, status=$status")
+    }
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val telecomManager = remember { context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager }
 
@@ -95,14 +100,10 @@ fun ActiveCallScreen() {
                     onClick = {
                         isSpeakerOn = !isSpeakerOn
                         try {
-                            // Cycle through modes to find one that works on this ROM
+                            // ROMs vary on which mode works for speakerphone hijack
                             if (isSpeakerOn) {
                                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                                 audioManager.isSpeakerphoneOn = true
-                                if (!audioManager.isSpeakerphoneOn) {
-                                    audioManager.mode = AudioManager.MODE_IN_CALL
-                                    audioManager.isSpeakerphoneOn = true
-                                }
                             } else {
                                 audioManager.mode = AudioManager.MODE_NORMAL
                                 audioManager.isSpeakerphoneOn = false
@@ -110,9 +111,8 @@ fun ActiveCallScreen() {
                             
                             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
                             audioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVolume, AudioManager.FLAG_SHOW_UI)
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
                             
-                            android.util.Log.i("ActiveCallScreen", "Speaker toggled: $isSpeakerOn, Mode: ${audioManager.mode}")
+                            android.util.Log.i("ActiveCallScreen", "Manual Speaker Toggle: $isSpeakerOn, Mode: ${audioManager.mode}")
                         } catch (e: Exception) {
                             android.util.Log.e("ActiveCallScreen", "Failed to toggle speaker", e)
                         }
@@ -125,6 +125,7 @@ fun ActiveCallScreen() {
                 Button(
                     onClick = {
                         try {
+                            android.util.Log.i("ActiveCallScreen", "End Call Clicked")
                             telecomManager.endCall()
                         } catch (e: SecurityException) {
                             android.util.Log.e("ActiveCallScreen", "Failed to end call", e)
@@ -133,6 +134,21 @@ fun ActiveCallScreen() {
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) { Text("End Call") }
             }
+        }
+        
+        // Debug hijacking button
+        if (callState == TelephonyManager.CALL_STATE_OFFHOOK && liveTranscript.isEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    // Send intent to service to force start transcription
+                    val intent = Intent(context, zw.co.donnclab.calltape.service.CallTranscriptionService::class.java).apply {
+                        putExtra("state", "OFFHOOK")
+                    }
+                    context.startService(intent)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Magenta)
+            ) { Text("Force Mic Hijack") }
         }
     }
 }

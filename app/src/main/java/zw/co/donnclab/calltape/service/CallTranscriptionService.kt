@@ -153,40 +153,44 @@ class CallTranscriptionService : Service(), RecognitionListener {
     }
 
     private fun handleCallState(state: Int) {
-        Log.i(TAG, "handleCallState: $state (Previous: ${CallStateManager.callState.value})")
+        Log.i(TAG, "handleCallState: $state (Current StateFlow: ${CallStateManager.callState.value})")
+        
+        // Prevent re-processing same state
+        if (state == CallStateManager.callState.value && state != TelephonyManager.CALL_STATE_RINGING) return
+
         CallStateManager.callState.value = state
         
-        // Always try to bring UI to front on any active telephony state
-        if (state == TelephonyManager.CALL_STATE_RINGING || state == TelephonyManager.CALL_STATE_OFFHOOK) {
-            Log.d(TAG, "Bringing MainActivity to foreground for state $state")
-            val uiIntent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            try {
-                startActivity(uiIntent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to start MainActivity", e)
-            }
-        }
-
         when (state) {
             TelephonyManager.CALL_STATE_RINGING -> {
                 CallStateManager.statusMessage.value = "Incoming Call..."
+                Log.d(TAG, "Triggering UI for Incoming Call")
+                bringUiToFront()
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                CallStateManager.statusMessage.value = "Call Active - Routing Audio"
-                // Delay to allow ROM to establish audio
-                Handler(Looper.getMainLooper()).postDelayed({ startTranscription() }, 1500)
+                CallStateManager.statusMessage.value = "Call Connected - Starting Vosk"
+                Log.d(TAG, "Triggering UI for Active Call")
+                bringUiToFront()
+                // Give ROM time to switch audio paths
+                Handler(Looper.getMainLooper()).postDelayed({ startTranscription() }, 1000)
             }
             TelephonyManager.CALL_STATE_IDLE -> {
                 CallStateManager.statusMessage.value = "Call Ended"
+                Log.d(TAG, "Call Idle - Stopping Transcription")
                 stopTranscription()
             }
-            else -> {
-                CallStateManager.statusMessage.value = "Call State: $state"
-            }
+        }
+    }
+
+    private fun bringUiToFront() {
+        val uiIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        try {
+            startActivity(uiIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "bringUiToFront failed", e)
         }
     }
 
