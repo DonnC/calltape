@@ -4,10 +4,12 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -62,6 +64,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import zw.co.donnclab.calltape.data.CallRepository
+import zw.co.donnclab.calltape.telecom.CallStateManager
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
@@ -379,8 +382,8 @@ private fun initiateCall(context: Context, phoneNumber: String, accountHandle: P
     if (phoneNumber.isEmpty()) return
     Log.i("DialerScreen", "initiateCall: $phoneNumber on SIM $simSlot")
 
-    // Update global state
-    zw.co.donnclab.calltape.telecom.CallStateManager.activePhoneNumber.value = phoneNumber
+    // Save metadata, let the Service handle the state change detection
+    CallStateManager.activePhoneNumber.value = phoneNumber
     CallRepository.currentSimSlot = simSlot
 
     val uri = Uri.fromParts("tel", phoneNumber, null)

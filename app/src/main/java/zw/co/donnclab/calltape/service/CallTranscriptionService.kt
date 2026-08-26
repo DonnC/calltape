@@ -18,6 +18,7 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.vosk.Recognizer
@@ -153,29 +154,36 @@ class CallTranscriptionService : Service(), RecognitionListener {
     }
 
     private fun handleCallState(state: Int) {
-        Log.i(TAG, "handleCallState: $state (Current StateFlow: ${CallStateManager.callState.value})")
+        val prevState = CallStateManager.callState.value
+        Log.i(TAG, "handleCallState change request: $prevState -> $state")
         
-        // Prevent re-processing same state
-        if (state == CallStateManager.callState.value && state != TelephonyManager.CALL_STATE_RINGING) return
-
+        // Always ensure CallStateManager is updated
         CallStateManager.callState.value = state
         
         when (state) {
             TelephonyManager.CALL_STATE_RINGING -> {
                 CallStateManager.statusMessage.value = "Incoming Call..."
-                Log.d(TAG, "Triggering UI for Incoming Call")
                 bringUiToFront()
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                CallStateManager.statusMessage.value = "Call Connected - Starting Vosk"
-                Log.d(TAG, "Triggering UI for Active Call")
+                CallStateManager.statusMessage.value = "Call Active - Routing Audio"
                 bringUiToFront()
-                // Give ROM time to switch audio paths
-                Handler(Looper.getMainLooper()).postDelayed({ startTranscription() }, 1000)
+                
+                // Only start transcription if not already running
+                if (recognitionJob == null) {
+                    Handler(Looper.getMainLooper()).postDelayed({ 
+                        // Force audio mode again right before transcription
+                        try {
+                            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                            audioManager.mode = AudioManager.MODE_IN_CALL
+                            audioManager.isSpeakerphoneOn = true
+                        } catch (e: Exception) { Log.e(TAG, "Offhook audio re-route failed") }
+                        startTranscription() 
+                    }, 1000)
+                }
             }
             TelephonyManager.CALL_STATE_IDLE -> {
                 CallStateManager.statusMessage.value = "Call Ended"
-                Log.d(TAG, "Call Idle - Stopping Transcription")
                 stopTranscription()
             }
         }
@@ -231,10 +239,15 @@ class CallTranscriptionService : Service(), RecognitionListener {
 
             for (source in sources) {
                 Log.i(TAG, "Attempting AudioRecord with source: $source")
-                audioRecord = try {
-                    AudioRecord(source, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
-                } catch (e: SecurityException) {
-                    Log.w(TAG, "SecurityException for source $source")
+                audioRecord = if (ContextCompat.checkSelfPermission(this@CallTranscriptionService, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        AudioRecord(source, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Source $source failed: ${e.message}")
+                        null
+                    }
+                } else {
+                    Log.e(TAG, "Missing RECORD_AUDIO for source $source")
                     null
                 }
                 

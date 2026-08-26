@@ -30,11 +30,8 @@ import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-        ::onPermissionsResult
-    )
-
-    private fun onPermissionsResult(result: Map<String, Boolean>) {
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
         android.util.Log.i("MainActivity", "Permissions result: $result")
         if (result.values.all { it }) {
             startTranscriptionService()
@@ -51,15 +48,33 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_CALL_LOG,
-                Manifest.permission.ANSWER_PHONE_CALLS
+                Manifest.permission.ANSWER_PHONE_CALLS,
+                Manifest.permission.MANAGE_OWN_CALLS
             )
         )
 
         VoskModelManager.init(this)
+        requestDefaultDialer()
 
         setContent {
             CallTapeTheme {
                 MainAppRouter()
+            }
+        }
+    }
+
+    private val dialerRoleLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        android.util.Log.i("MainActivity", "Dialer role result: ${result.resultCode}")
+    }
+
+    private fun requestDefaultDialer() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
+            if (roleManager?.isRoleHeld(android.app.role.RoleManager.ROLE_DIALER) == false) {
+                val intent = roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_DIALER)
+                dialerRoleLauncher.launch(intent)
             }
         }
     }

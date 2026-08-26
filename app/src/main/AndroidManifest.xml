@@ -62,6 +62,13 @@
             android:exported="false"
             android:foregroundServiceType="microphone"
             android:directBootAware="true" />
+
+        <receiver android:name=".service.PhoneStateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

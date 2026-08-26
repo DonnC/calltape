@@ -73,11 +73,8 @@ fun ActiveCallScreen() {
                 Button(
                     onClick = {
                         try {
+                            android.util.Log.i("ActiveCallScreen", "Answer Clicked")
                             telecomManager.acceptRingingCall()
-                            // Immediately try to route audio
-                            audioManager.mode = AudioManager.MODE_IN_CALL
-                            audioManager.isSpeakerphoneOn = true
-                            android.util.Log.i("ActiveCallScreen", "Call answered. Routing audio to speaker.")
                         } catch (e: SecurityException) {
                             android.util.Log.e("ActiveCallScreen", "Failed to answer call", e)
                         }
@@ -88,6 +85,7 @@ fun ActiveCallScreen() {
                 Button(
                     onClick = {
                         try {
+                            android.util.Log.i("ActiveCallScreen", "Decline Clicked")
                             telecomManager.endCall()
                         } catch (e: SecurityException) {
                             android.util.Log.e("ActiveCallScreen", "Failed to end call", e)
