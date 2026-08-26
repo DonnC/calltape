@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import zw.co.donnclab.calltape.telecom.CallStateManager
 import zw.co.donnclab.calltape.ui.ActiveCallScreen
 import zw.co.donnclab.calltape.ui.DialerScreen
 import zw.co.donnclab.calltape.ui.HomeScreen
+import zw.co.donnclab.calltape.ui.RecorderScreen
 import zw.co.donnclab.calltape.ui.theme.CallTapeTheme
 import zw.co.donnclab.calltape.viewmodel.CallViewModel
 
@@ -93,7 +95,8 @@ class MainActivity : ComponentActivity() {
 enum class ScreenTab(val title: String, val icon: ImageVector) {
     HISTORY("History", Icons.Default.List),
     DIALER("Dialer", Icons.Default.Phone),
-    ACTIVE_CALL("In-Call", Icons.Default.Call)
+    ACTIVE_CALL("In-Call", Icons.Default.Call),
+    RECORDER("Recorder", Icons.Default.Mic)
 }
 
 @Composable
@@ -143,6 +146,7 @@ fun MainAppRouter(
                     onBack = { selectedTab = ScreenTab.HISTORY }
                 )
                 ScreenTab.ACTIVE_CALL -> ActiveCallScreen()
+                ScreenTab.RECORDER -> RecorderScreen()
             }
         }
     }

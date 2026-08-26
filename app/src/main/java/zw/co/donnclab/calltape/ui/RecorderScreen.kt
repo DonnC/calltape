@@ -1,0 +1,244 @@
+package zw.co.donnclab.calltape.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.vosk.Recognizer
+import zw.co.donnclab.calltape.service.VoskModelManager
+import zw.co.donnclab.calltape.utils.ReceiptFormatter
+import kotlin.math.sqrt
+
+private const val RECORDER_SAMPLE_RATE = 16_000
+
+/**
+ * A deliberately simple microphone/Vosk diagnostic screen.
+ *
+ * It uses the plain MIC source, not call audio routing. If this screen cannot
+ * transcribe a person speaking directly into the POS, call transcription will
+ * not be debuggable yet.
+ */
+@Composable
+fun RecorderScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val model = VoskModelManager.mainModel
+
+    var recordingJob by remember { mutableStateOf<Job?>(null) }
+    var recorder by remember { mutableStateOf<AudioRecord?>(null) }
+    var transcript by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Ready") }
+    var rms by remember { mutableFloatStateOf(0f) }
+    var framesRead by remember { mutableIntStateOf(0) }
+
+    fun stopRecording() {
+        status = "Stopping..."
+        try {
+            recorder?.stop()
+        } catch (_: IllegalStateException) {
+            // The recorder may already have stopped because the activity left.
+        }
+        recorder?.release()
+        recorder = null
+        recordingJob?.cancel()
+        recordingJob = null
+        if (status == "Stopping...") status = "Stopped"
+    }
+
+    fun startRecording() {
+        if (recordingJob != null) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            status = "RECORD_AUDIO permission is not granted"
+            return
+        }
+        if (model == null) {
+            status = "Speech model is still loading"
+            return
+        }
+
+        val minimumBuffer = AudioRecord.getMinBufferSize(
+            RECORDER_SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        if (minimumBuffer <= 0) {
+            status = "Device rejected 16 kHz microphone format ($minimumBuffer)"
+            return
+        }
+
+        transcript = ""
+        rms = 0f
+        framesRead = 0
+        status = "Opening microphone..."
+
+        val audioRecord = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                RECORDER_SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                minimumBuffer * 2
+            )
+        } catch (error: Exception) {
+            status = "AudioRecord construction failed: ${error.message ?: "unknown error"}"
+            return
+        }
+
+        if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+            audioRecord.release()
+            status = "Microphone could not be initialized"
+            return
+        }
+
+        recorder = audioRecord
+        recordingJob = scope.launch(Dispatchers.IO) {
+            val recognizer = Recognizer(model, RECORDER_SAMPLE_RATE.toFloat())
+            val buffer = ShortArray(minimumBuffer / 2)
+            try {
+                audioRecord.startRecording()
+                withContext(Dispatchers.Main) { status = "Recording microphone + transcribing" }
+
+                while (isActive && audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    val read = audioRecord.read(buffer, 0, buffer.size)
+                    if (read <= 0) continue
+
+                    var sum = 0.0
+                    for (index in 0 until read) {
+                        val sample = buffer[index].toDouble()
+                        sum += sample * sample
+                    }
+                    val level = sqrt(sum / read).toFloat()
+
+                    if (recognizer.acceptWaveForm(buffer, read)) {
+                        val text = JSONObject(recognizer.result).optString("text").trim()
+                        if (text.isNotEmpty()) {
+                            val line = ReceiptFormatter.formatLiveLine("MIC", text)
+                            withContext(Dispatchers.Main) { transcript += line }
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        rms = level
+                        framesRead += read
+                    }
+                }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    status = "Recording failed: ${error.message ?: "unknown error"}"
+                }
+            } finally {
+                val finalText = JSONObject(recognizer.finalResult).optString("text").trim()
+                if (finalText.isNotEmpty()) {
+                    val line = ReceiptFormatter.formatLiveLine("MIC", finalText)
+                    withContext(Dispatchers.Main) { transcript += line }
+                }
+                recognizer.close()
+                withContext(Dispatchers.Main) {
+                    recordingJob = null
+                    if (status.startsWith("Recording")) status = "Stopped"
+                }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                recorder?.stop()
+            } catch (_: Exception) {
+            }
+            recorder?.release()
+            recordingJob?.cancel()
+        }
+    }
+
+    val isRecording = recordingJob != null
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Microphone Recorder", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Speak directly into the POS. This isolates microphone capture and Vosk from cellular-call routing.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Status: $status")
+                Text("Input level: ${"%.0f".format(rms)} / 32768")
+                Text("Frames read: $framesRead")
+                Text("Model: ${if (model != null) "loaded" else VoskModelManager.loadingStatus.value}")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .background(Color.DarkGray)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((rms / 32768f).coerceIn(0f, 1f))
+                            .height(8.dp)
+                            .background(if (rms > 100f) Color.Green else Color.Red)
+                    )
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { startRecording() }, enabled = !isRecording) { Text("Start test") }
+            OutlinedButton(onClick = { stopRecording() }, enabled = isRecording) { Text("Stop") }
+        }
+
+        Surface(modifier = Modifier.fillMaxWidth(), color = Color.DarkGray) {
+            Text(
+                text = transcript.ifEmpty { "Transcript output will appear here..." },
+                modifier = Modifier.padding(12.dp),
+                color = Color.Green,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
