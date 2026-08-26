@@ -230,6 +230,16 @@ class CallTranscriptionService : Service(), RecognitionListener {
             try {
                 audioRecord?.startRecording()
                 Log.i(TAG, "Recording started. Direct source=${audioRecord?.audioSource} (${audioSourceName(audioRecord?.audioSource ?: -1)})")
+
+                callStartTime = System.currentTimeMillis()
+                transcriptBuffer.setLength(0)
+                caller1Vector = null
+                CallStateManager.liveTranscript.value = ""
+                printer.printLiveHeader(
+                    CallStateManager.activePhoneNumber.value.ifEmpty { "Unknown" },
+                    CallRepository.currentSimSlot.toString(),
+                    callStartTime
+                )
                 
                 withContext(Dispatchers.Main) { 
                     CallStateManager.statusMessage.value = "Transcribing (Source: ${audioRecord?.audioSource})" 
@@ -275,10 +285,6 @@ class CallTranscriptionService : Service(), RecognitionListener {
             }
         }
         
-        callStartTime = System.currentTimeMillis()
-        transcriptBuffer.setLength(0)
-        CallStateManager.liveTranscript.value = ""
-        printer.printLiveHeader(CallStateManager.activePhoneNumber.value.ifEmpty { "Unknown" }, CallRepository.currentSimSlot.toString(), callStartTime)
     }
 
     private fun stopTranscription() {
@@ -375,6 +381,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
             // successful call capture while containing only local speech.
         )
 
+        var firstInitialized: AudioRecord? = null
         for (source in sources) {
             Log.i(TAG, "Trying direct audio source $source (${audioSourceName(source)})")
             val candidate = try {
@@ -394,6 +401,7 @@ class CallTranscriptionService : Service(), RecognitionListener {
             }
 
             if (candidate?.state == AudioRecord.STATE_INITIALIZED) {
+                if (firstInitialized == null) firstInitialized = candidate
                 Log.i(TAG, "AudioRecord initialized for ${audioSourceName(source)}; probing PCM without speaker routing")
                 val probeBuffer = ShortArray((bufferSize / 2).coerceAtLeast(1))
                 var peakRms = 0.0
@@ -415,15 +423,21 @@ class CallTranscriptionService : Service(), RecognitionListener {
                     Log.w(TAG, "PCM probe failed for ${audioSourceName(source)}: ${error.message}")
                 }
                 Log.i(TAG, "PCM probe for ${audioSourceName(source)}: peakRms=${"%.1f".format(peakRms)}")
-                if (peakRms > 1.0) return candidate
-                candidate.release()
+                if (peakRms > 1.0) {
+                    if (candidate !== firstInitialized) firstInitialized?.release()
+                    return candidate
+                }
+                if (candidate !== firstInitialized) candidate.release()
                 Log.w(TAG, "${audioSourceName(source)} initialized but produced near-silent PCM")
                 continue
             }
             Log.w(TAG, "AudioRecord rejected source ${audioSourceName(source)} state=${candidate?.state}")
             candidate?.release()
         }
-        return null
+        if (firstInitialized != null) {
+            Log.w(TAG, "All direct sources were silent during probing; continuing with ${audioSourceName(firstInitialized.audioSource)} to observe live PCM")
+        }
+        return firstInitialized
     }
 
     private fun audioSourceName(source: Int): String = when (source) {
